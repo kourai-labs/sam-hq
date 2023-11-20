@@ -37,6 +37,7 @@ data
 | |____COIFT
 | |____HRSOD
 | |____ThinObject5K
+|____TestSAM (symlink from sample_data/)
 
 ```
 
@@ -76,6 +77,9 @@ python -m torch.distributed.launch --nproc_per_node=8 train.py --checkpoint ./pr
 ### Example HQ-SAM-H training script
 ```
 python -m torch.distributed.launch --nproc_per_node=8 train.py --checkpoint ./pretrained_checkpoint/sam_vit_h_4b8939.pth --model-type vit_h --output work_dirs/hq_sam_h
+
+(optional for single gpu) WORLD_SIZE='' torchrun --nproc_per_node=1 train.py --checkpoint ./pretrained_checkpoint/sam_vit_h_4b8939.pth --model-type vit_h --output work_dirs/hq_sam_h
+
 ```
 
 ## 4. Evaluation

@@ -1,0 +1,4 @@
+*.pth
+.ipynb_checkpoints
+__pycache__
+sample_data/
