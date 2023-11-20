@@ -3,10 +3,13 @@
 
 ## data loader
 from __future__ import print_function, division
+from typing import Union
 
 import numpy as np
 import random
 from copy import deepcopy
+import cv2
+import supervision as sv
 from skimage import io
 import os
 from glob import glob
@@ -17,6 +20,10 @@ from torchvision import transforms, utils
 from torchvision.transforms.functional import normalize
 import torch.nn.functional as F
 from torch.utils.data.distributed import DistributedSampler
+
+import hoarder
+from hoarder.datasets.local_dataset import LocalDataset
+
 
 #### --------------------- dataloader online ---------------------####
 
@@ -37,6 +44,10 @@ def get_im_gt_name_dict(datasets, flag='valid'):
             tmp_gt_list = [datasets[i]["gt_dir"]+os.sep+x.split(os.sep)[-1].split(datasets[i]["im_ext"])[0]+datasets[i]["gt_ext"] for x in tmp_im_list]
             print('-gt-', datasets[i]["name"],datasets[i]["gt_dir"], ': ',len(tmp_gt_list))
 
+        if datasets[i]["name"] == "TestSAM":
+            tmp_im_list = glob(datasets[i]["im_dir"]+"/data"+os.sep+'*'+datasets[i]["im_ext"])
+            print('-im-',datasets[i]["name"],datasets[i]["im_dir"], ': ',len(tmp_im_list))
+            tmp_im_list = datasets[i]["im_dir"]
 
         name_im_gt_list.append({"dataset_name":datasets[i]["name"],
                                 "im_path":tmp_im_list,
@@ -64,8 +75,13 @@ def create_dataloaders(name_im_gt_list, my_transforms=[], batch_size=1, training
 
     if training:
         for i in range(len(name_im_gt_list)):   
-            gos_dataset = OnlineDataset([name_im_gt_list[i]], transform = transforms.Compose(my_transforms))
+            if name_im_gt_list[i]["dataset_name"] == "TestSAM":
+                gos_dataset = HoarderSegmentationDataset([name_im_gt_list[i]], transform = transforms.Compose(my_transforms))
+            else:
+                gos_dataset = OnlineDataset([name_im_gt_list[i]], transform = transforms.Compose(my_transforms))
             gos_datasets.append(gos_dataset)
+
+        
 
         gos_dataset = ConcatDataset(gos_datasets)
         sampler = DistributedSampler(gos_dataset)
@@ -268,5 +284,70 @@ class OnlineDataset(Dataset):
             sample["ori_label"] = gt.type(torch.uint8)  # NOTE for evaluation only. And no flip here
             sample['ori_im_path'] = self.dataset["im_path"][idx]
             sample['ori_gt_path'] = self.dataset["gt_path"][idx]
+
+        return sample
+
+class HoarderSegmentationDataset(Dataset, LocalDataset):
+    def __init__(self, path: Union[str, list], transform=None, eval_ori_resolution=False) -> None:
+
+        # Only for SAM-HQ train dict input
+        if isinstance(path, list):
+            path = path[0]["im_path"]
+        
+        super(LocalDataset, self).__init__(hoarder.conservator, path)
+        self.dataset_info = self.get_dataset_info()
+        self.frames = self.get_frames()
+        self.transform = transform
+        self.eval_ori_resolution = eval_ori_resolution
+
+        valid_frames = []
+        for frame in self.frames:
+            if 'annotations' not in frame:
+                continue
+            if len(frame['annotations']) == 0:
+                continue
+
+            if not all(['boundingPolygon' in ann for ann in frame['annotations']]):
+                continue
+
+            valid_frames.append(frame)
+        self.frames = valid_frames
+
+    def __len__(self) -> int:
+        return len(self.frames)
+
+    def __getitem__(self, index: int):
+        frame = self.frames[index]
+        image_path = self.get_local_image_path(frame)
+        im = cv2.imread(image_path)
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        im_h, im_w = im.shape[:2]
+
+        for _ in range(10):
+            ann = random.choice(frame['annotations'])
+            if "boundingPolygon" in ann:
+                break
+
+        if "boundingPolygon" not in ann:
+            raise RuntimeError("Missing Polygon Annotations")
+
+        label = ann["labels"][0]
+        polygon = ann["boundingPolygon"]
+        polygon = [[data['x'], data['y']] for data in polygon]
+        gt = sv.polygon_to_mask(np.asarray(polygon), (im_w,im_h))
+
+        im = torch.tensor(im, dtype=torch.float32)
+        im = torch.transpose(torch.transpose(im,1,2),0,1)
+        gt = torch.unsqueeze(torch.tensor(gt, dtype=torch.float32),0)
+
+        sample = {
+            "imidx": torch.from_numpy(np.array(index)),
+            "image": im,
+            "label": gt,
+            "shape": torch.tensor(im.shape[-2:]),
+        }
+
+        if self.transform:
+            sample = self.transform(sample)
 
         return sample

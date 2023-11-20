@@ -296,7 +296,7 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     parser.add_argument('--rank', default=0, type=int,
                         help='number of distributed processes')
-    parser.add_argument('--local_rank', type=int, help='local rank for dist')
+    parser.add_argument('--local_rank', type=int, help='local rank for dist', default=0)
     parser.add_argument('--find_unused_params', action='store_true')
 
     parser.add_argument('--eval', action='store_true')
@@ -660,6 +660,12 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
+    dataset_hoarder = {"name": "TestSAM",
+             "im_dir": "./data/TestSAM",
+             "gt_dir": "",
+             "im_ext": ".jpg",
+             "gt_ext": ".png"}
+
     # valid set
     dataset_coift_val = {"name": "COIFT",
                  "im_dir": "./data/thin_object_detection/COIFT/images",
@@ -685,7 +691,7 @@ if __name__ == "__main__":
                  "im_ext": ".jpg",
                  "gt_ext": ".png"}
 
-    train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra]
+    train_datasets = [dataset_dis, dataset_thin, dataset_fss, dataset_duts, dataset_duts_te, dataset_ecssd, dataset_msra, dataset_hoarder]
     valid_datasets = [dataset_dis_val, dataset_coift_val, dataset_hrsod_val, dataset_thin_val] 
 
     args = get_args_parser()
