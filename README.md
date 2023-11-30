@@ -184,6 +184,15 @@ To obtain Light HQ-SAM's visual result:
 python demo/demo_hqsam_light.py
 ```
 
+### **Generating Annotations for Hoarder Dataset**
+Use the `metadata_generator.ipynb` to generate polygon annotations for `hoarder.LocalDataset`. Follow each cell to install dependencies, download pretrained, and load the SAM-HQ model.
+
+- Adjust the dataset name to be used from conservator
+- Make sure to clone the dataset to `train/data/`
+- Adjust the `Label Set` (currently using `LifeguardSegment`)
+- Adjust the iteration index (TestSAM starts from index 1) and run the process.
+- Add changes and push commit to remote conservator
+
 ### **HQ-SAM Tuning and HQ-Seg44k Data**
 We provide detailed training, evaluation, visualization and data downloading instructions in [HQ-SAM training](train/README.md). You can also replace our training data to obtain your own SAM in specific application domain (like medical, OCR and remote sensing).
 
